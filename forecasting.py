@@ -9,9 +9,8 @@ from datetime import timedelta
 import warnings
 warnings.filterwarnings("ignore")
 
-# -----------------------------
 # STEP 1: LOAD DATA
-# -----------------------------
+
 file_path = "Oil well.xlsx"
 
 # Try reading without skipping rows first
@@ -34,13 +33,14 @@ possible_date_cols = [c for c in df.columns if 'date' in c.lower() or 'prd' in c
 if possible_date_cols:
     date_col = possible_date_cols[0]
 else:
-    # Fall back to first column
+    
     date_col = df.columns[0]
     print(f"⚠️ Using '{date_col}' as date column (auto-detected)")
 
 df.rename(columns={date_col: "DATEPRD"}, inplace=True)
 
 # Rename other columns if names partially match known terms
+
 rename_map = {}
 for col in df.columns:
     col_low = col.lower()
@@ -64,9 +64,11 @@ for col in df.columns:
 df.rename(columns=rename_map, inplace=True)
 
 # Convert date
+
 df["DATEPRD"] = pd.to_datetime(df["DATEPRD"], errors="coerce")
 
 # Drop invalid rows
+
 df = df.dropna(subset=["DATEPRD"]).sort_values("DATEPRD")
 
 # If target column missing, take second column as fallback
@@ -79,9 +81,9 @@ if "BORE_OIL_VOL" not in df.columns:
 print("\n✅ Data loaded successfully:")
 print(df.head())
 
-# -----------------------------
+
 # STEP 2: SELECT FEATURES
-# -----------------------------
+
 target_col = "BORE_OIL_VOL"
 
 feature_cols = [
@@ -96,6 +98,7 @@ feature_cols = [
 ]
 
 # Keep only columns that exist
+
 feature_cols = [c for c in feature_cols if c in df.columns]
 if target_col not in df.columns:
     raise ValueError("❌ Target column 'BORE_OIL_VOL' not found in dataset.")
@@ -104,6 +107,7 @@ lookback = 30
 forecast_days = 30
 
 # Scale features
+
 scalers = {}
 scaled_df = pd.DataFrame(index=df.index)
 for col in feature_cols:
@@ -111,9 +115,9 @@ for col in feature_cols:
     scaled_df[col] = scaler.fit_transform(df[[col]].fillna(method='ffill')).ravel()
     scalers[col] = scaler
 
-# -----------------------------
+
 # STEP 3: CREATE SEQUENCES
-# -----------------------------
+
 X, y = [], []
 for i in range(lookback, len(scaled_df)):
     X.append(scaled_df[feature_cols].iloc[i - lookback:i].values)
@@ -122,16 +126,16 @@ for i in range(lookback, len(scaled_df)):
 X, y = np.array(X), np.array(y)
 print(f"\n✅ Created sequences: X shape = {X.shape}, y shape = {y.shape}")
 
-# -----------------------------
+
 # STEP 4: TRAIN/TEST SPLIT
-# -----------------------------
+
 split = int(len(X) * 0.8)
 X_train, X_test = X[:split], X[split:]
 y_train, y_test = y[:split], y[split:]
 
-# -----------------------------
+
 # STEP 5: BUILD LSTM
-# -----------------------------
+
 model = Sequential([
     LSTM(128, return_sequences=True, input_shape=(X_train.shape[1], X_train.shape[2])),
     Dropout(0.2),
@@ -142,9 +146,9 @@ model = Sequential([
 model.compile(optimizer="adam", loss="mse")
 early_stop = EarlyStopping(monitor="val_loss", patience=10, restore_best_weights=True)
 
-# -----------------------------
+
 # STEP 6: TRAIN
-# -----------------------------
+
 history = model.fit(
     X_train, y_train,
     validation_data=(X_test, y_test),
@@ -154,9 +158,9 @@ history = model.fit(
     verbose=1
 )
 
-# -----------------------------
+
 # STEP 7: PREDICT TEST
-# -----------------------------
+
 pred_scaled = model.predict(X_test)
 pred = scalers[target_col].inverse_transform(pred_scaled)
 actual = scalers[target_col].inverse_transform(y_test.reshape(-1, 1))
@@ -170,9 +174,9 @@ plt.ylabel("Oil Volume (m³/day)")
 plt.legend()
 plt.show()
 
-# -----------------------------
+
 # STEP 8: FORECAST FUTURE
-# -----------------------------
+
 last_seq = scaled_df[feature_cols].iloc[-lookback:].values
 current_seq = last_seq.copy()
 future_predictions = []
@@ -211,3 +215,4 @@ plt.show()
 
 forecast_df.to_csv("oil_forecast_results.csv", index=False)
 print("\n✅ Forecast saved to 'oil_forecast_results.csv'")
+
